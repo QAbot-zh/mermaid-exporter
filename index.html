@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mermaid Exporter</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="toolbar">
+    <div class="toolbar-left">
+      <h1 class="logo">Mermaid Exporter</h1>
+      <select id="select-mermaid-theme" title="Mermaid 图表主题">
+        <option value="default">Default</option>
+        <option value="neutral">Neutral</option>
+        <option value="dark">Dark</option>
+        <option value="forest">Forest</option>
+        <option value="base">Base</option>
+      </select>
+      <select id="select-mermaid-look" title="图表外观">
+        <option value="classic">Classic</option>
+        <option value="handDrawn">Hand-drawn</option>
+      </select>
+    </div>
+    <div class="toolbar-right">
+      <button id="btn-copy-svg" title="复制 SVG 代码">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span>复制 SVG</span>
+      </button>
+      <button id="btn-download-svg" title="下载 SVG 文件">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>下载 SVG</span>
+      </button>
+      <button id="btn-copy-png" title="复制为图片">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <span>复制图片</span>
+      </button>
+      <button id="btn-download-png" title="下载 PNG 文件">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>下载 PNG</span>
+      </button>
+      <div class="png-size-group">
+        <span class="png-size-label">PNG size</span>
+        <div class="png-size-toggle">
+          <button type="button" class="toggle-btn active" data-mode="auto">Auto</button>
+          <button type="button" class="toggle-btn" data-mode="fixed-width">Width</button>
+          <button type="button" class="toggle-btn" data-mode="fixed-height">Height</button>
+        </div>
+        <input type="number" id="png-size-value" class="png-size-input" min="100" max="10000" value="1080" placeholder="1080" hidden>
+      </div>
+      <div class="toolbar-divider"></div>
+      <button id="btn-theme" title="切换主题">
+        <svg id="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg id="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="split-pane">
+    <div class="pane editor-pane" id="editor-pane">
+      <div class="pane-header">编辑器</div>
+      <div id="editor"></div>
+    </div>
+    <div class="divider" id="divider"></div>
+    <div class="pane preview-pane" id="preview-pane">
+      <div class="pane-header">预览</div>
+      <div id="preview"></div>
+    </div>
+  </main>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
