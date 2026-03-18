@@ -701,6 +701,7 @@ body {
   100% { background: transparent; box-shadow: none; }
 }
 
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
   .toolbar {

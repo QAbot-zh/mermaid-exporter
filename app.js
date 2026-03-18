@@ -599,6 +599,7 @@ async function renderMermaid(code) {
 
   if (!trimmed) {
     preview.innerHTML = '<div style="color:var(--text-secondary)">输入 Mermaid 代码开始预览</div>';
+    clearErrorHighlight();
     return;
   }
 
@@ -606,19 +607,31 @@ async function renderMermaid(code) {
     renderCounter++;
     const id = `mermaid-svg-${renderCounter}`;
     const { svg } = await mermaid.render(id, trimmed);
+    const hadSvg = !!preview.querySelector('svg');
+    const savedScale = previewScale;
+    const savedPanX = previewPanX;
+    const savedPanY = previewPanY;
     preview.innerHTML = svg;
-    // Reset zoom/pan on re-render
-    previewScale = 1;
-    previewPanX = 0;
-    previewPanY = 0;
-    applyPreviewTransform();
-    scheduleFitPreview();
+    clearErrorHighlight();
+    if (hadSvg) {
+      previewScale = savedScale;
+      previewPanX = savedPanX;
+      previewPanY = savedPanY;
+      applyPreviewTransform();
+    } else {
+      previewScale = 1;
+      previewPanX = 0;
+      previewPanY = 0;
+      applyPreviewTransform();
+      scheduleFitPreview();
+    }
   } catch (err) {
     // Mermaid render may create dangling elements on error
     const errEl = document.getElementById(`dmermaid-svg-${renderCounter}`);
     if (errEl) errEl.remove();
 
     preview.innerHTML = `<div class="error-message">${escapeHtml(err.message || String(err))}</div>`;
+    highlightErrorLine(err.message || String(err));
   }
 }
 
@@ -1001,6 +1014,30 @@ function scrollEditorToLine(line) {
       setTimeout(() => cmLine.classList.remove('cm-highlight-line'), 1500);
     }
   }
+}
+
+// ===== Error Line Highlight =====
+let errorLineStyleEl = null;
+
+function clearErrorHighlight() {
+  if (errorLineStyleEl) {
+    errorLineStyleEl.textContent = '';
+  }
+}
+
+function highlightErrorLine(msg) {
+  if (!errorLineStyleEl) {
+    errorLineStyleEl = document.createElement('style');
+    document.head.appendChild(errorLineStyleEl);
+  }
+  const match = msg.match(/on line (\d+)/i);
+  if (!match) {
+    clearErrorHighlight();
+    return;
+  }
+  const lineNum = parseInt(match[1], 10);
+  errorLineStyleEl.textContent =
+    `.cm-content > .cm-line:nth-child(${lineNum}) { background: rgba(220, 38, 38, 0.15) !important; box-shadow: inset 3px 0 0 var(--error-color); }`;
 }
 
 function initPreviewZoomPan() {
