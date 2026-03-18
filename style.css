@@ -406,7 +406,7 @@ body {
 }
 
 #preview .error-message {
-  color: var(--error-color);
+  color: #b91c1c;
   background: var(--error-bg);
   border: 1px solid var(--error-color);
   border-radius: 6px;
@@ -591,6 +591,10 @@ body {
   border: 1px solid var(--border-color);
 }
 
+[data-theme="dark"] #preview .error-message {
+  color: #fca5a5;
+}
+
 .toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
@@ -701,6 +705,69 @@ body {
   100% { background: transparent; box-shadow: none; }
 }
 
+/* ===== Error Help (Common Errors) ===== */
+.error-help-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 6px 14px;
+  border: 1px solid var(--error-color);
+  border-radius: 6px;
+  background: var(--error-color);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.error-help-toggle:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.error-help-toggle .arrow {
+  display: inline-block;
+  transition: transform 0.2s;
+}
+
+.error-help-toggle.open .arrow {
+  transform: rotate(90deg);
+}
+
+.error-help-list {
+  margin-top: 10px;
+  padding: 14px 18px;
+  list-style: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 2;
+  color: var(--text-primary);
+  background: var(--error-bg);
+  border: 1px solid var(--error-color);
+  border-radius: 6px;
+  max-width: 600px;
+  width: 100%;
+}
+
+.error-help-list li {
+  padding: 2px 0;
+}
+
+.error-help-list code {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 13px;
+}
+
+.error-help-list .fix-arrow {
+  color: var(--text-secondary);
+  margin: 0 2px;
+}
 
 /* ===== Responsive ===== */
 @media (max-width: 768px) {

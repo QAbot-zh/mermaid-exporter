@@ -630,7 +630,7 @@ async function renderMermaid(code) {
     const errEl = document.getElementById(`dmermaid-svg-${renderCounter}`);
     if (errEl) errEl.remove();
 
-    preview.innerHTML = `<div class="error-message">${escapeHtml(err.message || String(err))}</div>`;
+    preview.innerHTML = `<div class="error-message">${escapeHtml(err.message || String(err))}</div><button class="error-help-toggle" id="btn-error-help"><span class="arrow">&#9654;</span> 自查常见错误</button>`;
     highlightErrorLine(err.message || String(err));
   }
 }
@@ -1523,6 +1523,28 @@ function init() {
     if (val >= 100 && val <= 10000) {
       setPngSizeValue(val);
     }
+  });
+
+  // ===== Error Help Toggle (event delegation) =====
+  document.getElementById('preview').addEventListener('click', (e) => {
+    const toggle = e.target.closest('#btn-error-help');
+    if (!toggle) return;
+    toggle.classList.toggle('open');
+    const existing = document.querySelector('.error-help-list');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+    const list = document.createElement('ul');
+    list.className = 'error-help-list';
+    list.innerHTML =
+      '<li><strong>1.</strong> 虚线箭头写法：<code>.-></code> <span class="fix-arrow">&rarr;</span> <code>-.-></code></li>' +
+      '<li><strong>2.</strong> <code>subgraph</code> 必须有对应的 <code>end</code> 闭合</li>' +
+      '<li><strong>3.</strong> 缺少图表方向声明时添加 <code>TD</code> 或 <code>LR</code></li>' +
+      '<li><strong>4.</strong> 节点 ID 不能使用保留字 <code>end</code>：<code>end[结束]</code> <span class="fix-arrow">&rarr;</span> <code>endNode["结束"]</code></li>' +
+      '<li><strong>5.</strong> 节点文本内的双引号需转义：<code>"</code> <span class="fix-arrow">&rarr;</span> <code>&amp;quot;</code> 或用单引号代替</li>' +
+      '<li><strong>6.</strong> 含中文/特殊字符的节点文本需用双引号包裹：<code>A[文本]</code> <span class="fix-arrow">&rarr;</span> <code>A["文本"]</code></li>';
+    toggle.after(list);
   });
 }
 
