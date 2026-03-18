@@ -467,6 +467,7 @@ let previewPanY = 0;
 let isPanning = false;
 let panStartX, panStartY;
 let panStartPanX, panStartPanY;
+let lastHoveredGroup = null;
 
 // ===== PNG Size Settings =====
 function getPngSizeMode() {
@@ -828,6 +829,180 @@ function ensurePreviewVisible() {
 }
 
 
+// ===== Double-click to source line =====
+
+const meaningfulClasses = ['node', 'edgeLabel', 'actor', 'note', 'cluster',
+  'label', 'edgePath', 'messageText', 'activation', 'statediagram-state',
+  'er', 'pieCircle', 'slice', 'task', 'section',
+  'architecture-service', 'architecture-junction', 'edge',
+  'person-man'];
+
+function findMermaidElement(target) {
+  let el = target;
+  // Pass 1: Walk up to find a meaningful <g> group
+  while (el && el.tagName !== 'svg') {
+    if (el.tagName === 'g') {
+      const id = el.getAttribute('id') || '';
+      const cls = el.getAttribute('class') || '';
+
+      // Extract nodeId from common Mermaid ID patterns
+      let nodeId = null;
+      const flowMatch = id.match(/^flowchart-(.+?)-\d+$/);
+      if (flowMatch) nodeId = flowMatch[1];
+      const classMatch = !nodeId && id.match(/^classId-(.+?)-\d+$/);
+      if (classMatch) nodeId = classMatch[1];
+      // Some diagram types use plain IDs
+      if (!nodeId && id && /^[A-Za-z]/.test(id) && !id.includes(' ')) {
+        nodeId = id;
+      }
+
+      const hasMeaningfulClass = meaningfulClasses.some(c => cls.includes(c));
+
+      // Fallback 1: check if any direct non-g child carries a meaningful class
+      // Covers <g> wrappers that lack their own class but contain meaningful
+      // elements (e.g. journey <rect class="task">, C4 <rect class="node-bkg">)
+      let hasChildMatch = false;
+      if (!nodeId && !hasMeaningfulClass) {
+        for (const child of el.children) {
+          if (child.tagName !== 'g') {
+            const childCls = child.getAttribute('class') || '';
+            if (meaningfulClasses.some(c => childCls.includes(c))) {
+              hasChildMatch = true;
+              break;
+            }
+          }
+        }
+        // Fallback 2: leaf group (no <g> children) with rect + text
+        // Covers elements with no CSS classes at all (e.g. C4 boundaries)
+        if (!hasChildMatch) {
+          let hasGChild = false, hasRect = false, hasText = false;
+          for (const child of el.children) {
+            const tag = child.tagName;
+            if (tag === 'g') { hasGChild = true; break; }
+            if (tag === 'rect') hasRect = true;
+            if (tag === 'text') hasText = true;
+          }
+          hasChildMatch = !hasGChild && hasRect && hasText;
+        }
+      }
+
+      if (nodeId || hasMeaningfulClass || hasChildMatch) {
+        // Extract text content from the element
+        let text = '';
+        const textEls = el.querySelectorAll('text, foreignObject span, foreignObject div, foreignObject p');
+        for (const t of textEls) {
+          const content = t.textContent.trim();
+          // Skip C4/UML stereotype annotations like <<person>>, <<system>>
+          if (content && !/^<<.+>>$/.test(content)) {
+            text = content;
+            break;
+          }
+        }
+        return { nodeId, text, groupEl: el };
+      }
+    }
+    el = el.parentElement;
+  }
+
+  // Pass 2: Check flat SVG elements (rect/text without wrapping <g>)
+  // Safety net for diagram types that render shapes directly under <svg>
+  el = target;
+  while (el && el.tagName !== 'svg') {
+    if (el.tagName === 'rect' || el.tagName === 'text') {
+      const cls = el.getAttribute('class') || '';
+      if (meaningfulClasses.some(c => cls.includes(c))) {
+        let text = '';
+        let groupEl = el;
+
+        if (el.tagName === 'text') {
+          text = el.textContent.trim();
+          // Find preceding sibling rect with a shared class as hover target
+          let sib = el.previousElementSibling;
+          while (sib) {
+            if (sib.tagName === 'rect') {
+              const sibCls = sib.getAttribute('class') || '';
+              const words = cls.split(/\s+/);
+              if (words.some(w => w && sibCls.split(/\s+/).includes(w))) {
+                groupEl = sib;
+                break;
+              }
+            }
+            sib = sib.previousElementSibling;
+          }
+        } else {
+          // For rect, find next sibling text for content
+          let sib = el.nextElementSibling;
+          while (sib) {
+            if (sib.tagName === 'text') {
+              const content = sib.textContent.trim();
+              if (content) { text = content; break; }
+            }
+            if (sib.tagName === 'rect') break;
+            sib = sib.nextElementSibling;
+          }
+        }
+
+        return { nodeId: null, text, groupEl };
+      }
+    }
+    el = el.parentElement;
+  }
+
+  return null;
+}
+
+function findSourceLine(doc, nodeId, text) {
+  const lines = doc.split('\n');
+
+  // Priority 1: match by nodeId
+  if (nodeId) {
+    // Match patterns like: A[, A(, A{, A>, A--, A -->, A ---|, A -->|, A:::, A;
+    const idPattern = new RegExp(
+      '(?:^|\\s|;)' + escapeRegExp(nodeId) + '(?=[\\s\\[\\(\\{\\>\\-\\:\\;\\|/\\\\]|$)'
+    );
+    for (let i = 0; i < lines.length; i++) {
+      if (idPattern.test(lines[i])) return i;
+    }
+  }
+
+  // Priority 2: match by text content
+  if (text && text.length > 1) {
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes(text)) return i;
+    }
+  }
+
+  return -1;
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function scrollEditorToLine(line) {
+  if (!editor) return;
+  const doc = editor.state.doc;
+  const lineObj = doc.line(line + 1); // CodeMirror lines are 1-based
+  editor.dispatch({
+    selection: { anchor: lineObj.from },
+    scrollIntoView: true,
+  });
+  editor.focus();
+
+  // Brief highlight flash on the target line
+  const lineDOM = editor.domAtPos(lineObj.from);
+  const lineEl = lineDOM.node.nodeType === 1
+    ? lineDOM.node
+    : lineDOM.node.parentElement;
+  if (lineEl) {
+    const cmLine = lineEl.closest('.cm-line');
+    if (cmLine) {
+      cmLine.classList.add('cm-highlight-line');
+      setTimeout(() => cmLine.classList.remove('cm-highlight-line'), 1500);
+    }
+  }
+}
+
 function initPreviewZoomPan() {
   const preview = document.getElementById('preview');
 
@@ -860,6 +1035,25 @@ function initPreviewZoomPan() {
     applyPreviewTransform();
   }, { passive: false });
 
+  // Hover detection for interactive elements
+  preview.addEventListener('mousemove', (e) => {
+    if (isPanning) return;
+    const el = findMermaidElement(e.target);
+    const newGroup = el ? el.groupEl : null;
+    if (newGroup !== lastHoveredGroup) {
+      if (lastHoveredGroup) lastHoveredGroup.classList.remove('mermaid-hoverable');
+      if (newGroup) newGroup.classList.add('mermaid-hoverable');
+      lastHoveredGroup = newGroup;
+    }
+  });
+
+  preview.addEventListener('mouseleave', () => {
+    if (lastHoveredGroup) {
+      lastHoveredGroup.classList.remove('mermaid-hoverable');
+      lastHoveredGroup = null;
+    }
+  });
+
   // Mouse drag
   preview.addEventListener('mousedown', (e) => {
     // Only left button
@@ -868,6 +1062,10 @@ function initPreviewZoomPan() {
     if (e.target.closest('.error-message')) return;
     e.preventDefault();
     isPanning = true;
+    if (lastHoveredGroup) {
+      lastHoveredGroup.classList.remove('mermaid-hoverable');
+      lastHoveredGroup = null;
+    }
     panStartX = e.clientX;
     panStartY = e.clientY;
     panStartPanX = previewPanX;
@@ -888,8 +1086,18 @@ function initPreviewZoomPan() {
     preview.classList.remove('panning');
   });
 
-  // Double-click reset
-  preview.addEventListener('dblclick', () => {
+  // Double-click: jump to source line or reset zoom
+  preview.addEventListener('dblclick', (e) => {
+    const el = findMermaidElement(e.target);
+    if (el) {
+      const doc = editor.state.doc.toString();
+      const line = findSourceLine(doc, el.nodeId, el.text);
+      if (line >= 0) {
+        scrollEditorToLine(line);
+        return;
+      }
+    }
+    // Fallback: reset zoom
     previewScale = 1;
     previewPanX = 0;
     previewPanY = 0;

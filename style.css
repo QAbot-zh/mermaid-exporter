@@ -399,6 +399,12 @@ body {
   transform-origin: 0 0;
 }
 
+#preview svg .mermaid-hoverable {
+  cursor: pointer;
+  filter: brightness(1.08) drop-shadow(0 0 4px var(--accent-glow));
+  transition: filter 0.2s ease;
+}
+
 #preview .error-message {
   color: var(--error-color);
   background: var(--error-bg);
@@ -682,6 +688,17 @@ body {
 
 .png-size-input {
   -moz-appearance: textfield;
+}
+
+/* ===== Editor line highlight flash ===== */
+.cm-highlight-line {
+  animation: highlight-flash 1.5s ease-out;
+}
+
+@keyframes highlight-flash {
+  0%   { background: var(--accent-light); box-shadow: inset 3px 0 0 var(--accent); }
+  70%  { background: var(--accent-light); box-shadow: inset 3px 0 0 var(--accent); }
+  100% { background: transparent; box-shadow: none; }
 }
 
 /* ===== Responsive ===== */
