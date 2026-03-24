@@ -105,7 +105,18 @@
     </div>
     <div class="divider" id="divider"></div>
     <div class="pane preview-pane" id="preview-pane">
-      <div class="pane-header">预览</div>
+      <div class="pane-header">
+        <span class="pane-title">预览</span>
+        <div class="direction-control" id="direction-control" style="display:none">
+          <span class="direction-label">方向</span>
+          <div class="png-size-toggle direction-toggle">
+            <button type="button" class="toggle-btn" data-dir="TD" title="从上到下">↓ TD</button>
+            <button type="button" class="toggle-btn" data-dir="LR" title="从左到右">→ LR</button>
+            <button type="button" class="toggle-btn" data-dir="BT" title="从下到上">↑ BT</button>
+            <button type="button" class="toggle-btn" data-dir="RL" title="从右到左">← RL</button>
+          </div>
+        </div>
+      </div>
       <div id="preview"></div>
     </div>
   </main>

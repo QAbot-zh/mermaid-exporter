@@ -694,6 +694,23 @@ body {
   -moz-appearance: textfield;
 }
 
+/* ===== Direction Control ===== */
+.direction-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.direction-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-weight: 500;
+}
+
 /* ===== Editor line highlight flash ===== */
 .cm-highlight-line {
   animation: highlight-flash 1.5s ease-out;

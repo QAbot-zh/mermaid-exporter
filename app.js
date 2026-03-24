@@ -613,6 +613,7 @@ async function renderMermaid(code) {
     const savedPanY = previewPanY;
     preview.innerHTML = svg;
     clearErrorHighlight();
+    updateDirectionControl(trimmed);
     if (hadSvg) {
       previewScale = savedScale;
       previewPanX = savedPanX;
@@ -632,6 +633,7 @@ async function renderMermaid(code) {
 
     preview.innerHTML = `<div class="error-message">${escapeHtml(err.message || String(err))}</div><button class="error-help-toggle" id="btn-error-help"><span class="arrow">&#9654;</span> 自查常见错误</button>`;
     highlightErrorLine(err.message || String(err));
+    updateDirectionControl(trimmed);
   }
 }
 
@@ -1195,6 +1197,59 @@ function initPreviewZoomPan() {
   }, { passive: false });
 }
 
+// ===== Flowchart Direction Control =====
+function parseFlowchartDirection(code) {
+  const match = code.match(/^(graph|flowchart)(?:\s+(TD|TB|BT|LR|RL))?\b/im);
+  if (!match) return null;
+  const direction = match[2] ? match[2].toUpperCase() : 'TD';
+  return { keyword: match[1], direction };
+}
+
+function updateDirectionControl(code) {
+  const control = document.getElementById('direction-control');
+  const parsed = parseFlowchartDirection(code);
+  if (!parsed) {
+    control.style.display = 'none';
+    return;
+  }
+  control.style.display = '';
+  const normalizedDir = parsed.direction === 'TB' ? 'TD' : parsed.direction;
+  control.querySelectorAll('.toggle-btn').forEach((btn) => {
+    if (btn.dataset.dir === normalizedDir) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+}
+
+function initDirectionControl() {
+  const control = document.getElementById('direction-control');
+  control.addEventListener('click', (e) => {
+    const btn = e.target.closest('.toggle-btn[data-dir]');
+    if (!btn) return;
+    const newDir = btn.dataset.dir;
+    const code = editor.state.doc.toString();
+    const parsed = parseFlowchartDirection(code);
+    if (!parsed) return;
+
+    let newCode;
+    if (parsed.direction && code.match(/^(graph|flowchart)\s+(TD|TB|BT|LR|RL)\b/im)) {
+      newCode = code.replace(
+        /^(graph|flowchart)\s+(TD|TB|BT|LR|RL)\b/im,
+        `$1 ${newDir}`
+      );
+    } else {
+      // No direction declared, insert one after the keyword
+      newCode = code.replace(
+        /^(graph|flowchart)\b/im,
+        `$1 ${newDir}`
+      );
+    }
+    setEditorContent(newCode);
+  });
+}
+
 // ===== Export Helpers =====
 function getSvgString() {
   const svgEl = document.querySelector('#preview svg');
@@ -1462,6 +1517,7 @@ function init() {
   initDivider();
   initPreviewZoomPan();
   initSampleDiagrams();
+  initDirectionControl();
 
   // Initial render
   renderMermaid(defaultCode);
