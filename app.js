@@ -486,6 +486,24 @@ let panStartX, panStartY;
 let panStartPanX, panStartPanY;
 let lastHoveredGroup = null;
 
+// ===== code parsing =====
+function getCodeFromUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    return code ? decodeURIComponent(code) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearUrlCodeParam() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.has('code')) {
+    url.searchParams.delete('code');
+    window.history.replaceState({}, '', url.toString());
+  }
+}
 // ===== PNG Size Settings =====
 function getPngSizeMode() {
   return localStorage.getItem('pngSizeMode') || 'auto';
@@ -1627,7 +1645,13 @@ function init() {
   window.addEventListener('resize', scheduleFitPreviewIfAuto);
 
   // Initial render
-  renderMermaid(defaultCode);
+  const urlCode = getCodeFromUrl();
+  if (urlCode) {
+    setEditorContent(urlCode);
+    clearUrlCodeParam();
+  } else {
+    renderMermaid(defaultCode);
+  }
 
   // Bind toolbar buttons
   document.getElementById('btn-copy-svg').addEventListener('click', copySvg);
