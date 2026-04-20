@@ -465,6 +465,7 @@ let suppressDebouncedRender = false;
 let previewScale = 1;
 let previewPanX = 0;
 let previewPanY = 0;
+let previewUserAdjusted = false;
 let isPanning = false;
 let panStartX, panStartY;
 let panStartPanX, panStartPanY;
@@ -600,15 +601,20 @@ function cleanupMermaidScratchRoot(id) {
 }
 
 // ===== Mermaid Rendering =====
-async function renderMermaid(code) {
+async function renderMermaid(code, options = {}) {
   const preview = document.getElementById('preview');
   const trimmed = code.trim();
+  const forceFit = options.forceFit === true;
   const requestId = ++latestRenderRequestId;
   let renderId = '';
 
   if (!trimmed) {
     if (requestId !== latestRenderRequestId) return;
     preview.innerHTML = '<div style="color:var(--text-secondary)">输入 Mermaid 代码开始预览</div>';
+    previewScale = 1;
+    previewPanX = 0;
+    previewPanY = 0;
+    previewUserAdjusted = false;
     clearErrorHighlight();
     return;
   }
@@ -625,7 +631,8 @@ async function renderMermaid(code) {
     preview.innerHTML = svg;
     clearErrorHighlight();
     updateDirectionControl(trimmed);
-    if (hadSvg) {
+    const shouldPreserveView = hadSvg && !forceFit && previewUserAdjusted;
+    if (shouldPreserveView) {
       previewScale = savedScale;
       previewPanX = savedPanX;
       previewPanY = savedPanY;
@@ -720,7 +727,8 @@ function setEditorContent(code) {
     changes: { from: 0, to: editor.state.doc.length, insert: code },
   });
   suppressDebouncedRender = false;
-  renderMermaid(code);
+  previewUserAdjusted = false;
+  renderMermaid(code, { forceFit: true });
   focusEditorWithoutPageScroll();
 }
 
@@ -758,11 +766,37 @@ function getSvgContentBox(svg) {
 }
 
 function getSvgContentBoxPx(svg) {
+  const rect = svg.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
   const box = getSvgContentBox(svg);
-  if (!box) return null;
+  if (!box) {
+    return { x: 0, y: 0, width: rect.width, height: rect.height };
+  }
+
+  try {
+    const ctm = svg.getScreenCTM();
+    if (ctm && typeof DOMPoint === 'function') {
+      const p1 = new DOMPoint(box.x, box.y).matrixTransform(ctm);
+      const p2 = new DOMPoint(box.x + box.width, box.y + box.height).matrixTransform(ctm);
+      const left = Math.min(p1.x, p2.x) - rect.left;
+      const top = Math.min(p1.y, p2.y) - rect.top;
+      const width = Math.abs(p2.x - p1.x);
+      const height = Math.abs(p2.y - p1.y);
+      if (
+        Number.isFinite(left) && Number.isFinite(top) &&
+        Number.isFinite(width) && Number.isFinite(height) &&
+        width > 0 && height > 0
+      ) {
+        if (width >= 1 && height >= 1) {
+          return { x: left, y: top, width, height };
+        }
+      }
+    }
+  } catch {
+    // getScreenCTM/DOMPoint can fail in some edge cases; fallback below.
+  }
 
   const vb = readViewBox(svg);
-  const rect = svg.getBoundingClientRect();
   let scaleX = 1;
   let scaleY = 1;
   let originX = 0;
@@ -800,6 +834,16 @@ function fitAndCenterPreview() {
     previewScale = 1;
     previewPanX = 0;
     previewPanY = 0;
+    previewUserAdjusted = false;
+    applyPreviewTransform();
+    ensurePreviewVisible();
+    return;
+  }
+  if (box.width < 1 || box.height < 1) {
+    previewScale = 1;
+    previewPanX = 0;
+    previewPanY = 0;
+    previewUserAdjusted = false;
     applyPreviewTransform();
     ensurePreviewVisible();
     return;
@@ -813,16 +857,18 @@ function fitAndCenterPreview() {
   const height = Math.max(box.height + inset * 2, 1);
   const availableWidth = Math.max(contentWidth, 1);
   const availableHeight = Math.max(contentHeight, 1);
-  const fitWidth = width <= availableWidth * 0.8;
-  const fitHeight = height <= availableHeight * 0.8;
+  const fitRatio = 0.92;
+  const fitWidth = width <= availableWidth * fitRatio;
+  const fitHeight = height <= availableHeight * fitRatio;
   let scale = 1;
   if (!fitWidth || !fitHeight) {
-    scale = Math.min((availableWidth * 0.8) / width, (availableHeight * 0.8) / height);
+    scale = Math.min((availableWidth * fitRatio) / width, (availableHeight * fitRatio) / height);
   }
   if (!Number.isFinite(scale) || scale <= 0) {
     previewScale = 1;
     previewPanX = 0;
     previewPanY = 0;
+    previewUserAdjusted = false;
     applyPreviewTransform();
     ensurePreviewVisible();
     return;
@@ -835,6 +881,7 @@ function fitAndCenterPreview() {
   previewPanY = (contentHeight - height * previewScale) / 2 - (boxY - inset) * previewScale;
   if (!Number.isFinite(previewPanX)) previewPanX = 0;
   if (!Number.isFinite(previewPanY)) previewPanY = 0;
+  previewUserAdjusted = false;
   applyPreviewTransform();
   ensurePreviewVisible();
 }
@@ -845,6 +892,8 @@ function scheduleFitPreview() {
   });
   setTimeout(fitAndCenterPreview, 0);
   setTimeout(fitAndCenterPreview, 50);
+  setTimeout(fitAndCenterPreview, 150);
+  setTimeout(fitAndCenterPreview, 300);
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => {
       fitAndCenterPreview();
@@ -864,8 +913,16 @@ function ensurePreviewVisible() {
     previewScale = 1;
     previewPanX = 0;
     previewPanY = 0;
+    previewUserAdjusted = false;
     applyPreviewTransform();
   }
+}
+
+function scheduleFitPreviewIfAuto() {
+  if (previewUserAdjusted) return;
+  const svg = document.querySelector('#preview svg');
+  if (!svg) return;
+  scheduleFitPreview();
 }
 
 
@@ -1085,6 +1142,7 @@ function initPreviewZoomPan() {
     const contentX = (mouseX - previewPanX) / previewScale;
     const contentY = (mouseY - previewPanY) / previewScale;
 
+    const prevScale = previewScale;
     const factor = 1.1;
     if (e.deltaY < 0) {
       previewScale = Math.min(previewScale * factor, 10);
@@ -1095,6 +1153,9 @@ function initPreviewZoomPan() {
     // Adjust pan so that the mouse position stays at the same content point
     previewPanX = mouseX - contentX * previewScale;
     previewPanY = mouseY - contentY * previewScale;
+    if (previewScale !== prevScale) {
+      previewUserAdjusted = true;
+    }
 
     applyPreviewTransform();
   }, { passive: false });
@@ -1141,6 +1202,7 @@ function initPreviewZoomPan() {
     if (!isPanning) return;
     previewPanX = panStartPanX + (e.clientX - panStartX);
     previewPanY = panStartPanY + (e.clientY - panStartY);
+    previewUserAdjusted = true;
     applyPreviewTransform();
   });
 
@@ -1165,6 +1227,7 @@ function initPreviewZoomPan() {
     previewScale = 1;
     previewPanX = 0;
     previewPanY = 0;
+    previewUserAdjusted = false;
     applyPreviewTransform();
     fitAndCenterPreview();
   });
@@ -1186,6 +1249,7 @@ function initPreviewZoomPan() {
     e.preventDefault();
     previewPanX = panStartPanX + (e.touches[0].clientX - panStartX);
     previewPanY = panStartPanY + (e.touches[0].clientY - panStartY);
+    previewUserAdjusted = true;
     applyPreviewTransform();
   }, { passive: false });
 
@@ -1217,6 +1281,7 @@ function initPreviewZoomPan() {
       const dist = Math.hypot(dx, dy);
       const ratio = dist / pinchStartDist;
       previewScale = Math.min(Math.max(pinchStartScale * ratio, 0.1), 10);
+      previewUserAdjusted = true;
       applyPreviewTransform();
     }
   }, { passive: false });
@@ -1490,6 +1555,7 @@ function initDivider() {
     document.removeEventListener('touchmove', onDrag);
     document.removeEventListener('mouseup', stopDrag);
     document.removeEventListener('touchend', stopDrag);
+    scheduleFitPreviewIfAuto();
   }
 }
 
@@ -1543,6 +1609,7 @@ function init() {
   initPreviewZoomPan();
   initSampleDiagrams();
   initDirectionControl();
+  window.addEventListener('resize', scheduleFitPreviewIfAuto);
 
   // Initial render
   renderMermaid(defaultCode);
