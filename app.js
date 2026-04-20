@@ -443,6 +443,21 @@ Wind,Electricity grid,289.366`,
       Sit down: 5: Me`,
   },
   {
+    id: 'venn-beta',
+    label: '韦恩图 (Venn)',
+    code: `venn-beta
+  title 不可能三色图
+  set A["速度"]
+  set B["便宜"]
+  set C["稳定"]
+
+  union A,B["差"]
+  union A,C["贵"]
+  union B,C["慢"]
+
+  union A,B,C["滚"]`,
+  },
+  {
     id: 'xy',
     label: 'XY 图 (XY)',
     code: `xychart-beta
