@@ -458,6 +458,7 @@ Wind,Electricity grid,289.366`,
 let editor;
 let renderTimer;
 let renderCounter = 0;
+let latestRenderRequestId = 0;
 let suppressDebouncedRender = false;
 
 // ===== Preview Zoom & Pan State =====
@@ -592,21 +593,31 @@ function showToast(message) {
   setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
+function cleanupMermaidScratchRoot(id) {
+  if (!id) return;
+  const scratch = document.getElementById(`d${id}`);
+  if (scratch) scratch.remove();
+}
+
 // ===== Mermaid Rendering =====
 async function renderMermaid(code) {
   const preview = document.getElementById('preview');
   const trimmed = code.trim();
+  const requestId = ++latestRenderRequestId;
+  let renderId = '';
 
   if (!trimmed) {
+    if (requestId !== latestRenderRequestId) return;
     preview.innerHTML = '<div style="color:var(--text-secondary)">输入 Mermaid 代码开始预览</div>';
     clearErrorHighlight();
     return;
   }
 
   try {
-    renderCounter++;
-    const id = `mermaid-svg-${renderCounter}`;
-    const { svg } = await mermaid.render(id, trimmed);
+    renderId = `mermaid-svg-${++renderCounter}`;
+    const { svg } = await mermaid.render(renderId, trimmed);
+    cleanupMermaidScratchRoot(renderId);
+    if (requestId !== latestRenderRequestId) return;
     const hadSvg = !!preview.querySelector('svg');
     const savedScale = previewScale;
     const savedPanX = previewPanX;
@@ -628,8 +639,8 @@ async function renderMermaid(code) {
     }
   } catch (err) {
     // Mermaid render may create dangling elements on error
-    const errEl = document.getElementById(`dmermaid-svg-${renderCounter}`);
-    if (errEl) errEl.remove();
+    cleanupMermaidScratchRoot(renderId);
+    if (requestId !== latestRenderRequestId) return;
 
     preview.innerHTML = `<div class="error-message">${escapeHtml(err.message || String(err))}</div><button class="error-help-toggle" id="btn-error-help"><span class="arrow">&#9654;</span> 自查常见错误</button>`;
     highlightErrorLine(err.message || String(err));
@@ -687,6 +698,20 @@ function recreateEditor(theme) {
   });
 }
 
+function focusEditorWithoutPageScroll() {
+  if (!editor) return;
+  const target = editor.contentDOM || editor.dom;
+  if (target && typeof target.focus === 'function') {
+    try {
+      target.focus({ preventScroll: true });
+      return;
+    } catch {
+      // Fallback below for browsers without preventScroll support.
+    }
+  }
+  editor.focus();
+}
+
 function setEditorContent(code) {
   if (!editor) return;
   clearTimeout(renderTimer);
@@ -696,7 +721,7 @@ function setEditorContent(code) {
   });
   suppressDebouncedRender = false;
   renderMermaid(code);
-  editor.focus();
+  focusEditorWithoutPageScroll();
 }
 
 // ===== Preview Zoom & Pan =====
@@ -1002,7 +1027,7 @@ function scrollEditorToLine(line) {
     selection: { anchor: lineObj.from },
     scrollIntoView: true,
   });
-  editor.focus();
+  focusEditorWithoutPageScroll();
 
   // Brief highlight flash on the target line
   const lineDOM = editor.domAtPos(lineObj.from);
